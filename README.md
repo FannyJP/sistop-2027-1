@@ -1,29 +1,153 @@
 # FiUnamFS
 
-En este proyecto estoy trabajando con Python para crear un programa que permita realizar algunas operaciones con FiUnamFS.
+**Autor:** Perez Baez Jessica Estefani  
+**Lenguaje:** Python  
+**Versión utilizada:** Python 3.15.2
 
-De acuerdo con lo que pide la práctica, el programa debe poder mostrar los archivos que hay en el disco, copiar archivos hacia la computadora, agregar archivos, eliminarlos y trabajar con varios hilos al mismo tiempo.
+## ¿De qué trata el proyecto?
 
-Para ir organizando el trabajo, fui separando el código en diferentes archivos, de manera que cada uno se encargue de una parte del programa.
+En este proyecto estoy trabajando con Python para crear un programa que permita realizar diferentes operaciones con FiUnamFS.
+
+La idea es poder consultar los archivos que contiene el disco, copiar archivos desde FiUnamFS a la computadora, agregar archivos desde la computadora al disco y también eliminarlos.
+
+Además, como parte de la práctica, estoy trabajando con varios hilos para que las operaciones se puedan ejecutar mediante un hilo trabajador y otro que se encarga de recibir los cambios de estado.
+
+Para organizar mejor el trabajo, fui separando el código en diferentes archivos, de manera que cada uno se encargue de una parte del programa.
 
 ## Archivos y carpetas
 
-- **main.py:** es donde comienza el programa y desde donde se llaman las demás partes.
-- **filesystem.py:** aquí estoy trabajando con la imagen del disco. Por ahora permite abrirla y revisar algunos de sus datos para comprobar que sea FiUnamFS.
-- **directory.py:** se encarga de leer el directorio para conocer qué archivos hay y obtener información sobre ellos.
-- **operations.py:** aquí comencé a trabajar con las operaciones de los archivos. Por el momento tiene una función para copiar archivos desde FiUnamFS a la computadora.
-- **threads.py:** este archivo se utilizará más adelante para agregar el trabajo con hilos.
-- **disco/:** aquí se guardará la imagen del disco.
-- **archivos/:** aquí se guardarán los archivos que se copien a la computadora.
+- **main.py:** es donde comienza el programa. Aquí se muestra el menú y se selecciona la operación que se quiere realizar.
+- **filesystem.py:** se encarga de abrir la imagen del disco y revisar sus datos principales para comprobar que corresponda a FiUnamFS.
+- **directory.py:** permite leer el directorio, mostrar los archivos que contiene y obtener información sobre ellos.
+- **operations.py:** contiene las operaciones para copiar archivos desde FiUnamFS a la computadora, agregar archivos al disco y eliminarlos.
+- **threads.py:** contiene la parte relacionada con los hilos. Tiene un hilo trabajador que realiza las operaciones y otro que recibe los cambios de estado.
+- **disco/:** aquí se guarda la imagen del disco que utiliza el programa.
+- **archivos/:** aquí se guardan los archivos que se copian desde FiUnamFS a la computadora.
 
-## Lo que llevo
+## Requisitos
 
-Hasta ahora tengo creada la estructura inicial y he comenzado a trabajar en la lectura del sistema de archivos. Primero agregué la parte para abrir la imagen y obtener los datos principales del superbloque.
+Para ejecutar el proyecto se necesita:
 
-Después trabajé en la lectura del directorio, para poder identificar los archivos que contiene y mostrar algunos de sus datos. También comencé con la función para copiar archivos desde el disco hacia la computadora.
+- Tener Python instalado.
+- Se desarrolló y probó utilizando Python 3.15.2.
+- Tener la imagen de FiUnamFS proporcionada para la práctica.
+- Contar con una terminal para ejecutar el programa.
 
-## Lo que falta
+No se necesitan instalar librerías externas, ya que se utilizan módulos que vienen incluidos con Python, como `os`, `struct`, `threading`, `queue` y `datetime`.
 
-Todavía falta agregar la copia de archivos desde la computadora hacia FiUnamFS y la opción para eliminarlos. También queda pendiente implementar los hilos y la sincronización que pide la práctica.
+## ¿Cómo ejecutar el programa?
 
-Por ahora es un primer avance y todavía faltan varias partes por desarrollar.
+Primero hay que descargar o clonar el repositorio.
+
+Después, abrir la carpeta del proyecto desde VS Code o una terminal.
+
+**1. Preparar la imagen del disco**
+
+Este paso es importante porque la imagen `.img` no está incluida en el repositorio.
+
+El archivo `.gitignore` ignora las imágenes que se encuentran dentro de `disco/`, por lo que al clonar el proyecto esa carpeta puede no contener la imagen necesaria.
+
+Se debe conseguir la imagen proporcionada por el profesor y colocarla dentro de la carpeta `disco/` con el siguiente nombre exacto:
+
+`fiunamfs prueba.img`
+
+Esto es necesario porque en `main.py` se encuentra definida la siguiente ruta:
+
+`disco/fiunamfs prueba.img`
+
+Si la imagen tiene otro nombre, el programa no podrá encontrarla.
+
+**2. Abrir la terminal**
+
+Hay que asegurarse de estar dentro de la carpeta principal del proyecto, donde se encuentra `main.py`.
+
+**3. Ejecutar el programa**
+
+Escribir el siguiente comando:
+
+`py main.py`
+
+También se puede ejecutar con:
+
+`python main.py`
+
+Si todo está en su lugar, el programa revisará la imagen del disco y mostrará el menú principal.
+
+## Opciones del programa
+
+Al ejecutar el programa aparece un menú con cinco opciones:
+
+1. **Mostrar contenido del directorio:** permite consultar los archivos que se encuentran dentro de FiUnamFS, mostrando su nombre, tamaño, cluster inicial y fechas.
+2. **Copiar archivo de FiUnamFS a la computadora:** permite escribir el nombre de un archivo que se encuentra en el disco para copiarlo a la carpeta `archivos/`.
+3. **Copiar archivo de la computadora a FiUnamFS:** permite agregar un archivo que se encuentre en la computadora. Para esto se debe proporcionar su ruta.
+4. **Eliminar archivo de FiUnamFS:** permite escribir el nombre de un archivo para eliminarlo del disco.
+5. **Salir:** cierra el programa y finaliza los hilos.
+
+## ¿Cómo se utilizan los hilos?
+
+Para cumplir con la parte de concurrencia de la práctica, se agregaron dos hilos.
+
+El primero se llama **hilo trabajador**. Es el encargado de realizar las operaciones que se solicitan desde el menú, como copiar archivos, agregarlos o eliminarlos.
+
+El segundo se llama **hilo supervisor**. Su función es recibir los mensajes que indican cuándo comienza una operación, cuándo termina o si ocurrió algún error.
+
+Para que puedan comunicarse se utilizan colas (`Queue`). El trabajador envía los cambios de estado y el supervisor los recibe.
+
+También se utiliza `threading.Event` para avisar al menú cuando una operación terminó. De esta manera, el menú puede esperar el resultado antes de continuar.
+
+Además, se utiliza un bloqueo (`Lock`) en el acceso al disco para evitar que dos hilos modifiquen o lean la imagen al mismo tiempo de manera incorrecta.
+
+Los mensajes del supervisor se guardan en una cola y después se muestran desde `main.py`. Esto ayuda a que no se mezclen con el contenido del directorio o con las opciones del menú.
+
+## Contenido del disco utilizado en las pruebas
+
+En la imagen que utilicé para realizar las pruebas se encontraron originalmente los siguientes archivos:
+
+| Archivo | Tamaño | Cluster inicial |
+|---|---:|---:|
+| README.org | 31,126 bytes | 6 |
+| logo.png | 126,423 bytes | 22 |
+| mensaje.jpg | 254,484 bytes | 84 |
+
+Estos son los archivos que contiene la imagen original utilizada para las pruebas. Los archivos `prueba.txt` y `vacio.txt` se utilizaron después para comprobar las operaciones de agregar, copiar y eliminar.
+
+## Algunas pruebas que he realizado
+
+Durante el desarrollo he estado probando las diferentes opciones para comprobar que funcionen correctamente.
+
+Entre las pruebas realizadas están:
+
+- Mostrar los archivos que contiene el directorio.
+- Copiar archivos desde FiUnamFS a la computadora.
+- Agregar archivos desde la computadora al disco.
+- Eliminar archivos y comprobar que ya no aparezcan en el directorio.
+- Agregar y copiar un archivo vacío.
+- Intentar agregar un archivo con un nombre demasiado largo.
+- Intentar agregar un archivo que ya existe.
+- Intentar eliminar o copiar archivos que no se encuentran en el disco.
+- Comprobar que se pueda volver a utilizar el espacio de un archivo eliminado.
+- Revisar los mensajes que se envían entre los dos hilos.
+
+Para realizar estas pruebas utilicé una copia de la imagen del disco, para no modificar la imagen original proporcionada.
+
+## Archivos utilizados para las pruebas
+
+Durante el desarrollo se crearon algunos archivos temporales, por ejemplo:
+
+- `prueba.txt`
+- `vacio.txt`
+- `archivo_demasiado_largo.txt`
+
+Estos archivos se utilizaron para probar las operaciones del programa y no forman parte del contenido original de FiUnamFS.
+
+Los archivos que se extraen del disco se guardan dentro de `archivos/`.
+
+No es necesario incluir estos archivos temporales en el repositorio para ejecutar el proyecto.
+
+## Lo que falta y lo que quiero mejorar
+
+Aunque ya tengo funcionando las operaciones principales, todavía quiero seguir revisando el código y hacer algunas mejoras.
+
+Me falta seguir comprobando el comportamiento de los hilos, revisar posibles errores y terminar de organizar algunos detalles de la documentación.
+
+Por ahora, este es el avance que llevo del proyecto. Todavía hay cosas que revisar antes de considerarlo terminado.
