@@ -73,8 +73,9 @@ class Directorio:
             if not nombre or nombre.startswith("#"):
                 continue
 
+            # Validar que el nombre contenga caracteres ASCII imprimibles.
             if any(
-                caracter < 32 or caracter > 126
+                ord(caracter) < 32 or ord(caracter) > 126
                 for caracter in nombre
             ):
                 raise ValueError(

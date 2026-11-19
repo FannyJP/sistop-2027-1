@@ -43,7 +43,7 @@ Primero hay que descargar o clonar el repositorio.
 
 Después, abrir la carpeta del proyecto desde VS Code o una terminal.
 
-**1. Preparar la imagen del disco**
+### 1. Preparar la imagen del disco
 
 Este paso es importante porque las imágenes `.img` no están incluidas en el repositorio.
 
@@ -57,11 +57,11 @@ El programa utiliza por defecto el siguiente nombre:
 
 También se puede utilizar una imagen con otro nombre, indicando su ubicación al ejecutar el programa.
 
-**2. Abrir la terminal**
+### 2. Abrir la terminal
 
 Hay que asegurarse de estar dentro de la carpeta principal del proyecto, donde se encuentra `main.py`.
 
-**3. Ejecutar el programa**
+### 3. Ejecutar el programa
 
 Si la imagen se llama `fiunamfs.img`, escribir:
 
@@ -113,15 +113,15 @@ En la imagen que utilicé para realizar las pruebas se encontraron originalmente
 | logo.png | 126,423 bytes | 22 |
 | mensaje.jpg | 254,484 bytes | 84 |
 
-Estos son los archivos que contiene la imagen original utilizada para las pruebas.
+Estos son los archivos que contiene originalmente la imagen utilizada para las pruebas.
 
-Los archivos `prueba.txt` y `vacio.txt` se utilizaron después para comprobar las operaciones de agregar, copiar y eliminar.
+Los archivos `prueba.txt` y `vacio.txt` se utilizaron para comprobar las operaciones de agregar, copiar y eliminar.
 
 ## Algunas pruebas que he realizado
 
 Durante el desarrollo he estado probando las diferentes opciones para comprobar que funcionen correctamente.
 
-Entre las pruebas realizadas están:
+Entre las pruebas realizadas en versiones anteriores están:
 
 - Mostrar los archivos que contiene el directorio.
 - Copiar archivos desde FiUnamFS a la computadora.
@@ -135,7 +135,21 @@ Entre las pruebas realizadas están:
 - Revisar los mensajes que se envían entre los dos hilos.
 - Comprobar que los hilos finalicen correctamente al cerrar el programa.
 
-También realicé nuevas pruebas después de las últimas modificaciones para comprobar que la imagen se valide correctamente, que el directorio se pueda consultar y que los archivos se puedan copiar sin problemas.
+### Pruebas realizadas con la última actualización
+
+Después de las modificaciones realizadas en `directory.py` y `main.py`, volví a ejecutar el programa utilizando la imagen de prueba `fiunamfs prueba.img`.
+
+Los resultados obtenidos fueron:
+
+- **Validación de la imagen:** el programa reconoció correctamente la firma FiUnamFS, la versión 27-1, el tamaño de cluster de 2048 bytes, los cuatro clusters del directorio y los 720 clusters totales.
+- **Consulta del directorio:** se mostraron correctamente los tres archivos originales de la imagen.
+- **Agregar un archivo:** se agregó `prueba.txt`, con un tamaño de 86 bytes, y se registró correctamente en el cluster 5.
+- **Actualizar el directorio:** después de agregar el archivo, el directorio mostró cuatro archivos.
+- **Extraer un archivo:** se copió `prueba.txt` desde FiUnamFS hacia la computadora.
+- **Verificación de la copia:** el programa confirmó que el archivo copiado coincidía con los datos leídos durante la extracción.
+- **Funcionamiento de los hilos:** el hilo trabajador y el supervisor iniciaron correctamente, comunicaron el inicio y la finalización de la operación y terminaron correctamente al salir del programa.
+
+También calculé el hash SHA-256 del archivo extraído en la computadora. Queda pendiente compararlo directamente con los datos almacenados en la imagen para comprobar que ambos contenidos sean idénticos.
 
 Para realizar estas pruebas utilicé una copia de la imagen del disco, para no modificar la imagen original proporcionada.
 
@@ -159,6 +173,12 @@ Aunque ya tengo funcionando las operaciones principales, todavía quiero seguir 
 
 En esta última actualización trabajé principalmente en la validación de la imagen, la revisión del directorio y las operaciones de copia. También agregué comprobaciones para evitar errores al escribir información en el disco.
 
-Todavía queda pendiente volver a probar las operaciones de agregar y eliminar archivos con la última versión del código, además de continuar revisando el comportamiento de los hilos y algunos detalles de la documentación.
+Queda pendiente:
+
+- Comparar mediante SHA-256 el archivo original y el archivo almacenado en FiUnamFS.
+- Volver a probar la eliminación de archivos con la última versión del código.
+- Comprobar nuevamente la reutilización del espacio después de eliminar un archivo.
+- Continuar revisando el comportamiento de los hilos.
+- Seguir mejorando algunos detalles de la documentación.
 
 Por ahora, este es el avance que llevo del proyecto. Todavía hay cosas que revisar antes de considerarlo terminado.

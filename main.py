@@ -19,9 +19,8 @@ RUTA_DISCO_PREDETERMINADA = (
 
 
 def obtener_ruta_disco():
+    """Obtiene y comprueba la ruta de la imagen de FiUnamFS."""
 
-    # Si el usuario proporciona una ruta al ejecutar el programa,
-    # se utiliza esa imagen.
     if len(sys.argv) > 2:
         print("Uso: py main.py [ruta_de_la_imagen]")
         return None
@@ -30,12 +29,10 @@ def obtener_ruta_disco():
 
         ruta = Path(sys.argv[1])
 
-        # Si la ruta es relativa, buscarla desde la carpeta del proyecto.
         if not ruta.is_absolute():
             ruta = CARPETA_PROYECTO / ruta
 
     else:
-
         ruta = RUTA_DISCO_PREDETERMINADA
 
     ruta = ruta.resolve()
@@ -60,6 +57,7 @@ def obtener_ruta_disco():
 
 
 def mostrar_menu():
+    """Muestra las opciones disponibles."""
 
     print("\n========== FIUNAMFS ==========")
     print("1. Mostrar contenido del directorio")
@@ -71,6 +69,7 @@ def mostrar_menu():
 
 
 def mostrar_directorio(directorio):
+    """Muestra los archivos registrados en FiUnamFS."""
 
     print("\nCONSULTANDO DIRECTORIO DE FIUNAMFS...")
 
@@ -103,6 +102,7 @@ def mostrar_directorio(directorio):
 
 
 def mostrar_mensajes_hilos(administrador):
+    """Muestra los mensajes enviados por el hilo supervisor."""
 
     mensajes = administrador.obtener_mensajes()
 
@@ -111,10 +111,10 @@ def mostrar_mensajes_hilos(administrador):
 
 
 def main():
+    """Ejecuta el programa principal de FiUnamFS."""
 
     ruta_disco = obtener_ruta_disco()
 
-    # No continuar si no se encuentra la imagen.
     if ruta_disco is None:
         return
 
@@ -140,8 +140,6 @@ def main():
             opcion = input(
                 "Selecciona una opcion: "
             ).strip()
-
-            print("\nOpcion recibida:", repr(opcion))
 
             # OPCION 1: MOSTRAR DIRECTORIO
             if opcion == "1":
@@ -180,12 +178,13 @@ def main():
 
                         mostrar_mensajes_hilos(administrador)
 
-                        ruta_destino = os.path.join(
-                            "archivos",
-                            nombre
+                        ruta_destino = (
+                            CARPETA_PROYECTO
+                            / "archivos"
+                            / nombre
                         )
 
-                        if os.path.isfile(ruta_destino):
+                        if ruta_destino.is_file():
                             print("\nCopia verificada correctamente.")
                             print("Ubicacion:", ruta_destino)
 
