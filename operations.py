@@ -1,5 +1,7 @@
+
 import os
 import math
+import tempfile
 from datetime import datetime
 
 
@@ -12,8 +14,9 @@ class Operaciones:
         self.directorio = directorio
 
     def validar_nombre(self, nombre):
+        """Comprueba que el nombre cumpla las reglas del sistema."""
 
-        if not nombre:
+        if not isinstance(nombre, str) or not nombre:
             raise ValueError("El nombre del archivo esta vacio")
 
         if nombre in (".", ".."):
@@ -27,9 +30,14 @@ class Operaciones:
                 "El nombre no puede comenzar ni terminar con espacios"
             )
 
-        if "/" in nombre or "\\" in nombre:
+        caracteres_no_permitidos = '<>:"/\\|?*'
+
+        if any(
+            caracter in caracteres_no_permitidos
+            for caracter in nombre
+        ):
             raise ValueError(
-                "El nombre no debe contener rutas"
+                "El nombre contiene caracteres no permitidos"
             )
 
         try:
@@ -52,8 +60,15 @@ class Operaciones:
         return nombre_bytes
 
     def calcular_clusters(self, tamano):
+        """Calcula cuantos clusters necesita un archivo."""
+
+        if not isinstance(tamano, int) or tamano < 0:
+            raise ValueError("El tamano del archivo no es valido")
 
         tamano_cluster = self.sistema.tamano_cluster
+
+        if tamano_cluster <= 0:
+            raise ValueError("El tamano del cluster no es valido")
 
         cantidad = math.ceil(tamano / tamano_cluster)
 
@@ -61,55 +76,94 @@ class Operaciones:
         return max(cantidad, 1)
 
     def obtener_clusters_ocupados(self):
+        """Obtiene los clusters utilizados y detecta solapamientos."""
 
         archivos = self.directorio.listar()
         ocupados = set()
+        rangos = []
 
         for archivo in archivos:
 
             inicio = archivo["cluster_inicial"]
-            cantidad = self.calcular_clusters(
-                archivo["tamano"]
-            )
+            tamano = archivo["tamano"]
+            nombre = archivo["nombre"]
 
+            if not isinstance(inicio, int):
+                raise ValueError(
+                    f"Cluster inicial invalido en {nombre}"
+                )
+
+            cantidad = self.calcular_clusters(tamano)
             final = inicio + cantidad
 
             if inicio < self.CLUSTER_INICIAL_DATOS:
                 raise ValueError(
-                    f"Cluster inicial invalido en {archivo['nombre']}"
+                    f"Cluster inicial invalido en {nombre}"
                 )
 
             if final > self.sistema.clusters_totales:
                 raise ValueError(
-                    f"El archivo {archivo['nombre']} excede el disco"
+                    f"El archivo {nombre} excede el disco"
                 )
 
+            rangos.append((inicio, final, nombre))
+
+        # Comprobar que ningún archivo comparta clusters con otro.
+        rangos.sort()
+
+        for indice in range(1, len(rangos)):
+
+            inicio_anterior, final_anterior, nombre_anterior = (
+                rangos[indice - 1]
+            )
+
+            inicio_actual, final_actual, nombre_actual = (
+                rangos[indice]
+            )
+
+            if inicio_actual < final_anterior:
+                raise ValueError(
+                    f"Los archivos {nombre_anterior} y "
+                    f"{nombre_actual} comparten clusters"
+                )
+
+        for inicio, final, nombre in rangos:
             for cluster in range(inicio, final):
                 ocupados.add(cluster)
 
         return ocupados
 
     def buscar_espacio_contiguo(self, clusters_necesarios):
+        """Busca una secuencia de clusters libres."""
 
-        ocupados = self.obtener_clusters_ocupados()
-
-        limite = self.sistema.clusters_totales
-
-        for posible in range(
-            self.CLUSTER_INICIAL_DATOS,
-            limite - clusters_necesarios + 1
+        if (
+            not isinstance(clusters_necesarios, int)
+            or clusters_necesarios <= 0
         ):
-
-            candidatos = range(
-                posible,
-                posible + clusters_necesarios
+            raise ValueError(
+                "La cantidad de clusters solicitada no es valida"
             )
 
-            if all(
-                cluster not in ocupados
-                for cluster in candidatos
+        with self.sistema.lock:
+
+            ocupados = self.obtener_clusters_ocupados()
+            limite = self.sistema.clusters_totales
+
+            for posible in range(
+                self.CLUSTER_INICIAL_DATOS,
+                limite - clusters_necesarios + 1
             ):
-                return posible
+
+                candidatos = range(
+                    posible,
+                    posible + clusters_necesarios
+                )
+
+                if all(
+                    cluster not in ocupados
+                    for cluster in candidatos
+                ):
+                    return posible
 
         raise ValueError(
             "No hay espacio contiguo suficiente en FiUnamFS"
@@ -120,43 +174,102 @@ class Operaciones:
         nombre,
         carpeta_destino="archivos"
     ):
+        """Copia un archivo de FiUnamFS a la computadora."""
 
         self.validar_nombre(nombre)
 
-        archivo = self.directorio.buscar(nombre)
-
-        if archivo is None:
-            raise FileNotFoundError(
-                f"No existe el archivo {nombre} en FiUnamFS"
-            )
-
-        os.makedirs(carpeta_destino, exist_ok=True)
-
-        inicio = (
-            archivo["cluster_inicial"]
-            * self.sistema.tamano_cluster
-        )
-
         with self.sistema.lock:
 
-            self.sistema.archivo.seek(inicio)
+            archivo = self.directorio.buscar(nombre)
 
-            contenido = self.sistema.archivo.read(
-                archivo["tamano"]
+            if archivo is None:
+                raise FileNotFoundError(
+                    f"No existe el archivo {nombre} en FiUnamFS"
+                )
+
+            # Comprobar que el archivo esté dentro de los límites.
+            inicio_cluster = archivo["cluster_inicial"]
+            tamano = archivo["tamano"]
+
+            cantidad = self.calcular_clusters(tamano)
+
+            if inicio_cluster < self.CLUSTER_INICIAL_DATOS:
+                raise ValueError(
+                    "El archivo tiene un cluster inicial invalido"
+                )
+
+            if (
+                inicio_cluster + cantidad
+                > self.sistema.clusters_totales
+            ):
+                raise ValueError(
+                    "El archivo excede los limites del disco"
+                )
+
+            inicio = (
+                inicio_cluster * self.sistema.tamano_cluster
             )
 
-        if len(contenido) != archivo["tamano"]:
+            self.sistema.archivo.seek(inicio)
+            contenido = self.sistema.archivo.read(tamano)
+
+        if len(contenido) != tamano:
             raise ValueError(
                 "No se pudo leer el archivo completo"
             )
+
+        os.makedirs(carpeta_destino, exist_ok=True)
 
         ruta_destino = os.path.join(
             carpeta_destino,
             nombre
         )
 
-        with open(ruta_destino, "wb") as destino:
-            destino.write(contenido)
+        archivo_temporal = None
+
+        try:
+            # Escribir primero en un archivo temporal.
+            with tempfile.NamedTemporaryFile(
+                mode="wb",
+                dir=carpeta_destino,
+                prefix=".fiunamfs_",
+                suffix=".tmp",
+                delete=False
+            ) as temporal:
+
+                archivo_temporal = temporal.name
+
+                escritos = temporal.write(contenido)
+
+                if escritos != len(contenido):
+                    raise IOError(
+                        "No se pudo escribir la copia completa"
+                    )
+
+                temporal.flush()
+
+            # Verificar que el archivo temporal sea idéntico.
+            with open(archivo_temporal, "rb") as comprobacion:
+
+                contenido_copiado = comprobacion.read()
+
+            if contenido_copiado != contenido:
+                raise IOError(
+                    "La verificacion de la copia fallo"
+                )
+
+            # Reemplazar el destino solamente cuando la copia esté lista.
+            os.replace(archivo_temporal, ruta_destino)
+            archivo_temporal = None
+
+        finally:
+
+            # Eliminar archivos temporales si ocurrió un error.
+            if (
+                archivo_temporal is not None
+                and os.path.exists(archivo_temporal)
+            ):
+                os.remove(archivo_temporal)
 
         print(
             f"Archivo copiado correctamente: {ruta_destino}"
@@ -165,6 +278,7 @@ class Operaciones:
         return ruta_destino
 
     def copiar_a_fiunamfs(self, ruta_origen):
+        """Agrega un archivo de la computadora a FiUnamFS."""
 
         if not os.path.isfile(ruta_origen):
             raise FileNotFoundError(
@@ -172,7 +286,6 @@ class Operaciones:
             )
 
         nombre = os.path.basename(ruta_origen)
-
         nombre_bytes = self.validar_nombre(nombre)
 
         with open(ruta_origen, "rb") as origen:
@@ -182,11 +295,8 @@ class Operaciones:
 
         tamano_cluster = self.sistema.tamano_cluster
 
-        clusters_necesarios = self.calcular_clusters(
-            tamano
-        )
+        clusters_necesarios = self.calcular_clusters(tamano)
 
-        # No permitir archivos que excedan la capacidad de datos.
         capacidad_maxima = (
             self.sistema.clusters_totales
             - self.CLUSTER_INICIAL_DATOS
@@ -199,13 +309,13 @@ class Operaciones:
 
         with self.sistema.lock:
 
-            # Comprobar duplicados dentro del bloqueo.
+            # Comprobar que el archivo no exista.
             if self.directorio.buscar(nombre) is not None:
                 raise ValueError(
                     "Ya existe un archivo con ese nombre"
                 )
 
-            # Buscar espacio y entrada libre.
+            # Buscar espacio y una entrada disponible.
             cluster_inicial = self.buscar_espacio_contiguo(
                 clusters_necesarios
             )
@@ -235,18 +345,22 @@ class Operaciones:
                 b"\x00"
             )
 
-            # Escribir datos antes de registrar el archivo.
             try:
-
+                # Escribir los datos antes de registrar el archivo.
                 self.sistema.archivo.seek(inicio_datos)
 
-                self.sistema.archivo.write(
+                escritos = self.sistema.archivo.write(
                     contenido_relleno
                 )
 
+                if escritos != len(contenido_relleno):
+                    raise IOError(
+                        "No se pudieron escribir todos los datos"
+                    )
+
                 self.sistema.archivo.flush()
 
-                # Verificar los datos escritos.
+                # Comprobar que los datos se escribieron correctamente.
                 self.sistema.archivo.seek(inicio_datos)
 
                 verificacion = self.sistema.archivo.read(
@@ -258,30 +372,49 @@ class Operaciones:
                         "La verificacion de escritura fallo"
                     )
 
-                # Registrar el archivo al final.
+                # Registrar el archivo en el directorio.
                 self.directorio.escribir_entrada(
                     posicion,
                     entrada
                 )
 
-            except Exception:
+            except Exception as error:
 
-                # Intentar limpiar el espacio si la operación falla.
+                errores_limpieza = []
+
+                # Intentar liberar la entrada si se escribió parcialmente.
                 try:
+                    self.directorio.liberar_entrada(posicion)
+                except Exception as error_limpieza:
+                    errores_limpieza.append(error_limpieza)
 
+                # Intentar limpiar los clusters utilizados.
+                try:
                     self.sistema.archivo.seek(inicio_datos)
 
-                    self.sistema.archivo.write(
+                    escritos = self.sistema.archivo.write(
                         bytes(
-                            clusters_necesarios
-                            * tamano_cluster
+                            clusters_necesarios * tamano_cluster
                         )
                     )
 
+                    if escritos != (
+                        clusters_necesarios * tamano_cluster
+                    ):
+                        raise IOError(
+                            "No se pudo limpiar todo el espacio utilizado"
+                        )
+
                     self.sistema.archivo.flush()
 
-                except Exception:
-                    pass
+                except Exception as error_limpieza:
+                    errores_limpieza.append(error_limpieza)
+
+                if errores_limpieza:
+                    raise RuntimeError(
+                        "La operacion fallo y no se pudo completar "
+                        "toda la limpieza de recuperacion"
+                    ) from error
 
                 raise
 
@@ -292,6 +425,7 @@ class Operaciones:
         return nombre
 
     def eliminar_archivo(self, nombre):
+        """Elimina un archivo del directorio de FiUnamFS."""
 
         self.validar_nombre(nombre)
 
@@ -304,26 +438,25 @@ class Operaciones:
                     f"No existe el archivo {nombre} en FiUnamFS"
                 )
 
+            # Validar la ocupación del disco antes de eliminar.
+            self.obtener_clusters_ocupados()
+
             tamano_cluster = self.sistema.tamano_cluster
 
             cantidad = self.calcular_clusters(
                 archivo["tamano"]
             )
 
-            inicio = (
-                archivo["cluster_inicial"]
-                * tamano_cluster
-            )
+            cluster_inicial = archivo["cluster_inicial"]
 
-            # Validar que el archivo no invada el superbloque
-            # ni el directorio.
-            if archivo["cluster_inicial"] < self.CLUSTER_INICIAL_DATOS:
+            if cluster_inicial < self.CLUSTER_INICIAL_DATOS:
                 raise ValueError(
                     "El archivo tiene un cluster inicial invalido"
                 )
 
-            if archivo["cluster_inicial"] + cantidad > (
-                self.sistema.clusters_totales
+            if (
+                cluster_inicial + cantidad
+                > self.sistema.clusters_totales
             ):
                 raise ValueError(
                     "Los clusters del archivo exceden el disco"
@@ -334,12 +467,22 @@ class Operaciones:
                 archivo["posicion"]
             )
 
-            # Después limpiar el contenido de sus clusters.
+            # Después limpiar los clusters que utilizaba.
+            inicio = cluster_inicial * tamano_cluster
+            tamano_limpieza = cantidad * tamano_cluster
+
             self.sistema.archivo.seek(inicio)
 
-            self.sistema.archivo.write(
-                bytes(cantidad * tamano_cluster)
+            escritos = self.sistema.archivo.write(
+                bytes(tamano_limpieza)
             )
+
+            if escritos != tamano_limpieza:
+                self.sistema.archivo.flush()
+                raise IOError(
+                    "El archivo fue retirado del directorio, "
+                    "pero no se pudo limpiar todo su espacio"
+                )
 
             self.sistema.archivo.flush()
 

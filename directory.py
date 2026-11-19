@@ -8,8 +8,12 @@ class Directorio:
         self.sistema = sistema
 
     def _leer_directorio_completo(self):
+        """Lee todas las entradas del directorio."""
 
         sistema = self.sistema
+
+        if sistema.archivo is None or sistema.archivo.closed:
+            raise RuntimeError("La imagen no esta abierta")
 
         inicio = (
             self.CLUSTER_INICIAL_DIRECTORIO
@@ -26,44 +30,82 @@ class Directorio:
             datos = sistema.archivo.read(tamano)
 
         if len(datos) != tamano:
-            raise ValueError("No se pudo leer todo el directorio")
+            raise ValueError(
+                "No se pudo leer todo el directorio"
+            )
 
         return datos
 
     def listar(self):
+        """Obtiene los archivos registrados en el directorio."""
 
         datos = self._leer_directorio_completo()
         archivos = []
+        nombres_encontrados = set()
 
-        for posicion in range(0, len(datos), self.TAMANO_ENTRADA):
+        for posicion in range(
+            0,
+            len(datos),
+            self.TAMANO_ENTRADA
+        ):
 
-            entrada = datos[posicion:posicion + self.TAMANO_ENTRADA]
+            entrada = datos[
+                posicion:posicion + self.TAMANO_ENTRADA
+            ]
 
-            tipo = entrada[0:1].decode(
-                "ascii", errors="replace"
-            )
+            if len(entrada) != self.TAMANO_ENTRADA:
+                raise ValueError(
+                    "Se encontro una entrada incompleta"
+                )
 
-            nombre = entrada[1:16].decode(
-                "ascii", errors="replace"
-            ).rstrip(" \x00")
+            tipo = entrada[0:1]
 
-            if tipo != "F" or not nombre or nombre.startswith("#"):
+            if tipo != b"F":
                 continue
 
+            nombre_bytes = entrada[1:16]
+
+            nombre = nombre_bytes.decode(
+                "ascii",
+                errors="replace"
+            ).rstrip(" \x00")
+
+            if not nombre or nombre.startswith("#"):
+                continue
+
+            if any(
+                caracter < 32 or caracter > 126
+                for caracter in nombre
+            ):
+                raise ValueError(
+                    f"Nombre invalido en la entrada: {nombre!r}"
+                )
+
+            if nombre in nombres_encontrados:
+                raise ValueError(
+                    f"Archivo duplicado en el directorio: {nombre}"
+                )
+
+            nombres_encontrados.add(nombre)
+
             tamano = int.from_bytes(
-                entrada[16:20], "little"
+                entrada[16:20],
+                "little"
             )
 
             cluster = int.from_bytes(
-                entrada[20:24], "little"
+                entrada[20:24],
+                "little"
             )
 
             fecha_creacion = entrada[24:38].decode(
-                "ascii", errors="replace"
+                "ascii",
+                errors="replace"
             )
 
             fecha_modificacion = entrada[38:52].decode(
-                "ascii", errors="replace"
+                "ascii",
+                errors="replace"
             )
 
             informacion = {
@@ -80,6 +122,7 @@ class Directorio:
         return archivos
 
     def mostrar(self):
+        """Muestra los archivos registrados."""
 
         archivos = self.listar()
 
@@ -101,6 +144,7 @@ class Directorio:
             print("-" * 60)
 
     def buscar(self, nombre):
+        """Busca un archivo por su nombre."""
 
         for archivo in self.listar():
 
@@ -110,12 +154,19 @@ class Directorio:
         return None
 
     def entrada_libre(self):
+        """Encuentra una entrada disponible."""
 
         datos = self._leer_directorio_completo()
 
-        for posicion in range(0, len(datos), self.TAMANO_ENTRADA):
+        for posicion in range(
+            0,
+            len(datos),
+            self.TAMANO_ENTRADA
+        ):
 
-            entrada = datos[posicion:posicion + self.TAMANO_ENTRADA]
+            entrada = datos[
+                posicion:posicion + self.TAMANO_ENTRADA
+            ]
 
             tipo = entrada[0:1]
             nombre = entrada[1:16]
@@ -126,9 +177,36 @@ class Directorio:
         raise ValueError("El directorio esta lleno")
 
     def escribir_entrada(self, posicion, datos):
+        """Escribe una entrada de 64 bytes en el directorio."""
+
+        if not isinstance(datos, bytes):
+            raise TypeError(
+                "Los datos de la entrada deben ser bytes"
+            )
 
         if len(datos) != self.TAMANO_ENTRADA:
-            raise ValueError("La entrada debe medir 64 bytes")
+            raise ValueError(
+                "La entrada debe medir 64 bytes"
+            )
+
+        tamano_directorio = (
+            self.sistema.clusters_directorio
+            * self.sistema.tamano_cluster
+        )
+
+        if not isinstance(posicion, int):
+            raise TypeError(
+                "La posicion debe ser un numero entero"
+            )
+
+        if (
+            posicion < 0
+            or posicion + self.TAMANO_ENTRADA > tamano_directorio
+            or posicion % self.TAMANO_ENTRADA != 0
+        ):
+            raise ValueError(
+                "La posicion de la entrada no es valida"
+            )
 
         inicio = (
             self.CLUSTER_INICIAL_DIRECTORIO
@@ -137,11 +215,25 @@ class Directorio:
 
         with self.sistema.lock:
 
+            if (
+                self.sistema.archivo is None
+                or self.sistema.archivo.closed
+            ):
+                raise RuntimeError("La imagen no esta abierta")
+
             self.sistema.archivo.seek(inicio + posicion)
-            self.sistema.archivo.write(datos)
+
+            escritos = self.sistema.archivo.write(datos)
+
+            if escritos != self.TAMANO_ENTRADA:
+                raise IOError(
+                    "No se pudo escribir la entrada completa"
+                )
+
             self.sistema.archivo.flush()
 
     def liberar_entrada(self, posicion):
+        """Marca una entrada como disponible."""
 
         nombre_libre = b"#" + b"." * 14
 

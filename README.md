@@ -14,15 +14,17 @@ Además, como parte de la práctica, estoy trabajando con varios hilos para que 
 
 Para organizar mejor el trabajo, fui separando el código en diferentes archivos, de manera que cada uno se encargue de una parte del programa.
 
+Durante el desarrollo también he realizado algunas mejoras para validar mejor la imagen del disco, revisar las entradas del directorio y evitar problemas al momento de copiar o agregar archivos.
+
 ## Archivos y carpetas
 
 - **main.py:** es donde comienza el programa. Aquí se muestra el menú y se selecciona la operación que se quiere realizar.
-- **filesystem.py:** se encarga de abrir la imagen del disco y revisar sus datos principales para comprobar que corresponda a FiUnamFS.
-- **directory.py:** permite leer el directorio, mostrar los archivos que contiene y obtener información sobre ellos.
-- **operations.py:** contiene las operaciones para copiar archivos desde FiUnamFS a la computadora, agregar archivos al disco y eliminarlos.
+- **filesystem.py:** se encarga de abrir la imagen del disco y revisar sus datos principales para comprobar que corresponda a FiUnamFS. También se agregaron algunas validaciones para comprobar que la información del disco sea correcta.
+- **directory.py:** permite leer el directorio, mostrar los archivos que contiene y obtener información sobre ellos. También se mejoró la revisión de las entradas para detectar nombres duplicados y posiciones incorrectas al escribir.
+- **operations.py:** contiene las operaciones para copiar archivos desde FiUnamFS a la computadora, agregar archivos al disco y eliminarlos. Se mejoraron algunas comprobaciones para evitar copias incompletas y verificar los datos escritos.
 - **threads.py:** contiene la parte relacionada con los hilos. Tiene un hilo trabajador que realiza las operaciones y otro que recibe los cambios de estado.
-- **disco/:** aquí se guarda la imagen del disco que utiliza el programa.
-- **archivos/:** aquí se guardan los archivos que se copian desde FiUnamFS a la computadora.
+- **disco/:** aquí se guardan las imágenes del disco que utiliza el programa.
+- **archivos/:** aquí se guardan los archivos que se copian desde FiUnamFS a la computadora y los archivos que se utilizan para realizar pruebas.
 
 ## Requisitos
 
@@ -33,7 +35,7 @@ Para ejecutar el proyecto se necesita:
 - Tener la imagen de FiUnamFS proporcionada para la práctica.
 - Contar con una terminal para ejecutar el programa.
 
-No se necesitan instalar librerías externas, ya que se utilizan módulos que vienen incluidos con Python, como `os`, `struct`, `threading`, `queue` y `datetime`.
+No se necesitan instalar librerías externas, ya que se utilizan módulos que vienen incluidos con Python, como `os`, `struct`, `threading`, `queue`, `datetime`, `math` y `tempfile`.
 
 ## ¿Cómo ejecutar el programa?
 
@@ -43,19 +45,17 @@ Después, abrir la carpeta del proyecto desde VS Code o una terminal.
 
 **1. Preparar la imagen del disco**
 
-Este paso es importante porque la imagen `.img` no está incluida en el repositorio.
+Este paso es importante porque las imágenes `.img` no están incluidas en el repositorio.
 
 El archivo `.gitignore` ignora las imágenes que se encuentran dentro de `disco/`, por lo que al clonar el proyecto esa carpeta puede no contener la imagen necesaria.
 
-Se debe conseguir la imagen proporcionada por el profesor y colocarla dentro de la carpeta `disco/` con el siguiente nombre exacto:
+Se debe conseguir la imagen proporcionada por el profesor y colocarla dentro de la carpeta `disco/`.
 
-`fiunamfs prueba.img`
+El programa utiliza por defecto el siguiente nombre:
 
-Esto es necesario porque en `main.py` se encuentra definida la siguiente ruta:
+`fiunamfs.img`
 
-`disco/fiunamfs prueba.img`
-
-Si la imagen tiene otro nombre, el programa no podrá encontrarla.
+También se puede utilizar una imagen con otro nombre, indicando su ubicación al ejecutar el programa.
 
 **2. Abrir la terminal**
 
@@ -63,13 +63,17 @@ Hay que asegurarse de estar dentro de la carpeta principal del proyecto, donde s
 
 **3. Ejecutar el programa**
 
-Escribir el siguiente comando:
+Si la imagen se llama `fiunamfs.img`, escribir:
 
 `py main.py`
 
 También se puede ejecutar con:
 
 `python main.py`
+
+Si se quiere utilizar una imagen con otro nombre, como la que utilicé para las pruebas, se puede indicar su ruta:
+
+`py main.py "disco/fiunamfs prueba.img"`
 
 Si todo está en su lugar, el programa revisará la imagen del disco y mostrará el menú principal.
 
@@ -95,7 +99,7 @@ Para que puedan comunicarse se utilizan colas (`Queue`). El trabajador envía lo
 
 También se utiliza `threading.Event` para avisar al menú cuando una operación terminó. De esta manera, el menú puede esperar el resultado antes de continuar.
 
-Además, se utiliza un bloqueo (`Lock`) en el acceso al disco para evitar que dos hilos modifiquen o lean la imagen al mismo tiempo de manera incorrecta.
+Además, se utiliza un bloqueo compartido (`RLock`) en el acceso al disco para evitar que dos hilos lean o modifiquen la imagen al mismo tiempo de manera incorrecta.
 
 Los mensajes del supervisor se guardan en una cola y después se muestran desde `main.py`. Esto ayuda a que no se mezclen con el contenido del directorio o con las opciones del menú.
 
@@ -109,7 +113,9 @@ En la imagen que utilicé para realizar las pruebas se encontraron originalmente
 | logo.png | 126,423 bytes | 22 |
 | mensaje.jpg | 254,484 bytes | 84 |
 
-Estos son los archivos que contiene la imagen original utilizada para las pruebas. Los archivos `prueba.txt` y `vacio.txt` se utilizaron después para comprobar las operaciones de agregar, copiar y eliminar.
+Estos son los archivos que contiene la imagen original utilizada para las pruebas.
+
+Los archivos `prueba.txt` y `vacio.txt` se utilizaron después para comprobar las operaciones de agregar, copiar y eliminar.
 
 ## Algunas pruebas que he realizado
 
@@ -127,6 +133,9 @@ Entre las pruebas realizadas están:
 - Intentar eliminar o copiar archivos que no se encuentran en el disco.
 - Comprobar que se pueda volver a utilizar el espacio de un archivo eliminado.
 - Revisar los mensajes que se envían entre los dos hilos.
+- Comprobar que los hilos finalicen correctamente al cerrar el programa.
+
+También realicé nuevas pruebas después de las últimas modificaciones para comprobar que la imagen se valide correctamente, que el directorio se pueda consultar y que los archivos se puedan copiar sin problemas.
 
 Para realizar estas pruebas utilicé una copia de la imagen del disco, para no modificar la imagen original proporcionada.
 
@@ -148,6 +157,8 @@ No es necesario incluir estos archivos temporales en el repositorio para ejecuta
 
 Aunque ya tengo funcionando las operaciones principales, todavía quiero seguir revisando el código y hacer algunas mejoras.
 
-Me falta seguir comprobando el comportamiento de los hilos, revisar posibles errores y terminar de organizar algunos detalles de la documentación.
+En esta última actualización trabajé principalmente en la validación de la imagen, la revisión del directorio y las operaciones de copia. También agregué comprobaciones para evitar errores al escribir información en el disco.
+
+Todavía queda pendiente volver a probar las operaciones de agregar y eliminar archivos con la última versión del código, además de continuar revisando el comportamiento de los hilos y algunos detalles de la documentación.
 
 Por ahora, este es el avance que llevo del proyecto. Todavía hay cosas que revisar antes de considerarlo terminado.

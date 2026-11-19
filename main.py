@@ -1,5 +1,7 @@
 
 import os
+import sys
+from pathlib import Path
 
 from filesystem import FiUnamFS
 from directory import Directorio
@@ -7,7 +9,54 @@ from operations import Operaciones
 from threads import AdministradorHilos
 
 
-RUTA_DISCO = "disco/fiunamfs prueba.img"
+# Obtener la carpeta donde se encuentra este proyecto.
+CARPETA_PROYECTO = Path(__file__).resolve().parent
+
+# Imagen que se utiliza por defecto.
+RUTA_DISCO_PREDETERMINADA = (
+    CARPETA_PROYECTO / "disco" / "fiunamfs.img"
+)
+
+
+def obtener_ruta_disco():
+
+    # Si el usuario proporciona una ruta al ejecutar el programa,
+    # se utiliza esa imagen.
+    if len(sys.argv) > 2:
+        print("Uso: py main.py [ruta_de_la_imagen]")
+        return None
+
+    if len(sys.argv) == 2:
+
+        ruta = Path(sys.argv[1])
+
+        # Si la ruta es relativa, buscarla desde la carpeta del proyecto.
+        if not ruta.is_absolute():
+            ruta = CARPETA_PROYECTO / ruta
+
+    else:
+
+        ruta = RUTA_DISCO_PREDETERMINADA
+
+    ruta = ruta.resolve()
+
+    if not ruta.is_file():
+
+        print("\nNo se encontro la imagen de FiUnamFS.")
+        print("\nPara ejecutar el programa necesitas colocar")
+        print("la imagen proporcionada para la practica.")
+        print("\nPuedes guardarla dentro de la carpeta disco/")
+        print("con el nombre: fiunamfs.img")
+
+        print("\nTambien puedes indicar su ubicacion al ejecutar:")
+        print('py main.py "disco/fiunamfs prueba.img"')
+
+        print("\nRuta que se intento abrir:")
+        print(ruta)
+
+        return None
+
+    return ruta
 
 
 def mostrar_menu():
@@ -63,19 +112,24 @@ def mostrar_mensajes_hilos(administrador):
 
 def main():
 
-    sistema = FiUnamFS(RUTA_DISCO)
+    ruta_disco = obtener_ruta_disco()
+
+    # No continuar si no se encuentra la imagen.
+    if ruta_disco is None:
+        return
+
+    sistema = FiUnamFS(str(ruta_disco))
     administrador = None
 
     try:
 
-        # Abrir y validar la imagen del sistema de archivos.
+        # Abrir y validar la imagen.
         sistema.abrir()
 
-        # Crear los objetos principales.
         directorio = Directorio(sistema)
         operaciones = Operaciones(sistema, directorio)
 
-        # Crear e iniciar los hilos concurrentes.
+        # Iniciar los dos hilos.
         administrador = AdministradorHilos(operaciones)
         administrador.iniciar()
 
@@ -119,16 +173,12 @@ def main():
 
                     else:
 
-                        # La solicitud se procesa en el hilo trabajador.
                         administrador.enviar_solicitud(
                             "copiar_desde",
                             nombre
                         )
 
-                        # Mostrar mensajes del supervisor.
-                        mostrar_mensajes_hilos(
-                            administrador
-                        )
+                        mostrar_mensajes_hilos(administrador)
 
                         ruta_destino = os.path.join(
                             "archivos",
@@ -136,16 +186,12 @@ def main():
                         )
 
                         if os.path.isfile(ruta_destino):
-
                             print("\nCopia verificada correctamente.")
                             print("Ubicacion:", ruta_destino)
 
                 except Exception as error:
 
-                    # Recoger mensajes incluso si hubo error.
-                    mostrar_mensajes_hilos(
-                        administrador
-                    )
+                    mostrar_mensajes_hilos(administrador)
 
                     print("\nError durante la copia:")
                     print(type(error).__name__, ":", error)
@@ -167,27 +213,20 @@ def main():
 
                 try:
 
-                    # La solicitud se procesa en el hilo trabajador.
                     administrador.enviar_solicitud(
                         "copiar_hacia",
                         os.path.basename(ruta),
                         ruta
                     )
 
-                    # Mostrar mensajes del supervisor.
-                    mostrar_mensajes_hilos(
-                        administrador
-                    )
+                    mostrar_mensajes_hilos(administrador)
 
                     print("\nComprobando el directorio...")
                     mostrar_directorio(directorio)
 
                 except Exception as error:
 
-                    # Recoger mensajes incluso si hubo error.
-                    mostrar_mensajes_hilos(
-                        administrador
-                    )
+                    mostrar_mensajes_hilos(administrador)
 
                     print("\nError al agregar el archivo:")
                     print(type(error).__name__, ":", error)
@@ -209,26 +248,19 @@ def main():
 
                 try:
 
-                    # La solicitud se procesa en el hilo trabajador.
                     administrador.enviar_solicitud(
                         "eliminar",
                         nombre
                     )
 
-                    # Mostrar mensajes del supervisor.
-                    mostrar_mensajes_hilos(
-                        administrador
-                    )
+                    mostrar_mensajes_hilos(administrador)
 
                     print("\nDirectorio actualizado:")
                     mostrar_directorio(directorio)
 
                 except Exception as error:
 
-                    # Recoger mensajes incluso si hubo error.
-                    mostrar_mensajes_hilos(
-                        administrador
-                    )
+                    mostrar_mensajes_hilos(administrador)
 
                     print("\nError al eliminar el archivo:")
                     print(type(error).__name__, ":", error)
@@ -244,7 +276,6 @@ def main():
             else:
 
                 print("\nOpcion no valida. Selecciona del 1 al 5.")
-
                 input("Presiona Enter para continuar.")
 
     except KeyboardInterrupt:
