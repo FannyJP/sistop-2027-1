@@ -180,15 +180,3 @@ Los archivos que se extraen del disco se guardan dentro de `archivos/`.
 
 No es necesario incluir estos archivos temporales en el repositorio para ejecutar el proyecto.
 
-
-## Estado actual del proyecto
-
-Las operaciones principales del sistema ya se encuentran implementadas y se han realizado pruebas de funcionamiento utilizando una copia de la imagen original de FiUnamFS.
-
-También se revisó la organización del proyecto para integrarlo dentro del repositorio de la práctica, respetando la estructura de carpetas indicada:
-
-`proyectos/1/PerezBaezJessicaEstefani/`
-
-Antes de considerar terminada la entrega, queda realizar una última revisión general del código, comprobar que la documentación esté completa y verificar que la integración con el repositorio del profesor se haya realizado correctamente.
-
-Por ahora, este es el avance del proyecto. Las operaciones principales ya fueron probadas y se continúa trabajando en los últimos detalles para completar la entrega.
